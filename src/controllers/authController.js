@@ -14,6 +14,7 @@ const register = async (req, res) => {
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
+    console.log(`[BACKEND HIT] Registration attempt for email: ${req.body.email}`);
 };
 
 const login = async (req, res) => {
@@ -27,15 +28,21 @@ const login = async (req, res) => {
     }
 };
 
-const resetPassword = async (req, res) => {
-    const { email } = req.body;
+const googleLogin = async (req, res) => {
     try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: 'snoutscout://auth/callback' // Redirects back to your Expo app
+            }
+        });
         if (error) throw error;
-        res.status(200).json({ message: 'Password reset link sent to email' });
+        
+        // Return the Google secure URL to the frontend so it can open the browser
+        res.status(200).json({ url: data.url });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 };
 
-module.exports = { register, login, resetPassword };
+module.exports = { register, login, googleLogin };
