@@ -13,6 +13,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+// Add this right before app.use('/api/auth', authRoutes);
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
