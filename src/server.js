@@ -1,32 +1,67 @@
-// src/server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http'); // NEW: Required for Socket.io
+const { Server } = require('socket.io'); // NEW: Import Socket.io
+const supabase = require('./config/supabaseClient'); // NEW: For saving messages
 
-// Import Routes
 const authRoutes = require('./routes/authRoutes');
-// const userRoutes = require('./routes/userRoutes'); // You will create this next!
-// const petRoutes = require('./routes/petRoutes');   // And this!
+const messageRoutes = require('./routes/messageRoutes'); // NEW
 
 const app = express();
+const server = http.createServer(app); // NEW: Wrap express
 
-// Middleware
+// NEW: Initialize Socket.io Server
+const io = new Server(server, {
+    cors: { origin: '*' }
+});
+
 app.use(cors());
 app.use(express.json());
-// Add this right before app.use('/api/auth', authRoutes);
 
-// Mount Routes
 app.use('/api/auth', authRoutes);
-// app.use('/api/users', userRoutes);
-// app.use('/api/pets', petRoutes);
+app.use('/api/messages', messageRoutes); // NEW
 
-// Global Error Handler (Optional but recommended)
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Something went wrong!' });
+// --- REAL-TIME SOCKET LOGIC ---
+io.on('connection', (socket) => {
+    console.log(`[SOCKET] User connected: ${socket.id}`);
+
+    // 1. When a user opens the app, they join a "room" named after their User ID
+    socket.on('register', (userId) => {
+        socket.join(userId);
+        console.log(`[SOCKET] User ${userId} is now online and ready to receive messages.`);
+    });
+
+    // 2. Listen for outgoing messages
+    socket.on('send_message', async (data) => {
+        const { sender_id, receiver_id, text } = data;
+        
+        try {
+            // Save to Supabase permanently
+            const { data: savedMsg, error } = await supabase
+                .from('messages')
+                .insert([{ sender_id, receiver_id, text }])
+                .select()
+                .single();
+
+            if (!error && savedMsg) {
+                // Send the message to the receiver's screen instantly
+                io.to(receiver_id).emit('receive_message', savedMsg);
+                // Send it back to the sender so it appears on their screen too
+                socket.emit('receive_message', savedMsg);
+            }
+        } catch (err) {
+            console.error('[SOCKET ERROR]', err);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`[SOCKET] User disconnected: ${socket.id}`);
+    });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// CRITICAL: Change app.listen to server.listen so sockets work!
+server.listen(PORT, () => {
+    console.log(`Server and Socket.io running on port ${PORT}`);
 });
