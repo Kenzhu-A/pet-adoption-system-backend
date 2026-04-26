@@ -1,67 +1,73 @@
-// src/controllers/authController.js
 const supabase = require('../config/supabaseClient');
 
 const register = async (req, res) => {
     const { email, password, full_name } = req.body;
-    
-    // 1. Move the log to the very top so you know immediately when the route is hit
-    console.log(`[BACKEND HIT] Registration attempt for email: ${email}`);
-
     try {
-        const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name } }
-        });
-        
+        const { data: existingUser } = await supabase.from('users').select('*').eq('email', email).single();
+        if (existingUser) return res.status(400).json({ error: 'Email already exists' });
+
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
 
-        // 2. Add the Supabase silent duplicate checker
-        if (data.user && data.user.identities && data.user.identities.length === 0) {
-            console.error("[BACKEND ERROR] User already exists.");
-            return res.status(400).json({ error: "User already exists with this email." });
-        }
+        const userId = data.user.id;
+        const { error: dbError } = await supabase.from('users').insert([{ id: userId, email, full_name }]);
+        if (dbError) throw dbError;
 
-        console.log(`[BACKEND SUCCESS] User registered: ${data.user.id}`);
         res.status(201).json({ message: 'User registered successfully', user: data.user });
     } catch (error) {
-        console.error(`[BACKEND ERROR] ${error.message}`);
         res.status(400).json({ error: error.message });
     }
 };
 
 const login = async (req, res) => {
     const { email, password } = req.body;
-    console.log(`[BACKEND HIT] Login attempt for email: ${email}`);
-    
     try {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        
-        console.log(`[BACKEND SUCCESS] User logged in: ${data.user.id}`);
-        res.status(200).json({ message: 'Login successful', session: data.session });
+
+        const { data: userData } = await supabase.from('users').select('*').eq('id', data.user.id).single();
+
+        res.status(200).json({ message: 'Login successful', user: userData, session: data.session });
     } catch (error) {
-        console.error(`[BACKEND ERROR] ${error.message}`);
         res.status(400).json({ error: error.message });
     }
 };
 
-const googleLogin = async (req, res) => {
-    console.log(`[BACKEND HIT] Google Auth initialized`);
+const forgotPassword = async (req, res) => {
+    const { email } = req.body;
     try {
-        const { data, error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: 'snoutscout://auth/callback' 
-            }
+        if (!email) throw new Error("Email is required");
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) throw error;
+        res.status(200).json({ message: "OTP sent to email successfully" });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+const verifyOtp = async (req, res) => {
+    const { email, otp } = req.body;
+    try {
+        if (!email || !otp) {
+            return res.status(400).json({ error: "Email and OTP are required" });
+        }
+
+        const { data, error } = await supabase.auth.verifyOtp({
+            email: email,
+            token: otp,
+            type: 'recovery'
         });
+        
         if (error) throw error;
         
-        res.status(200).json({ url: data.url });
+        res.status(200).json({ 
+            message: "OTP verified", 
+            userId: data?.user?.id || '' 
+        });
     } catch (error) {
-        console.error(`[BACKEND ERROR] ${error.message}`);
-        res.status(400).json({ error: error.message });
+        // Ensures we always send a clean string back to the frontend
+        res.status(400).json({ error: error.message || "Invalid or expired OTP" });
     }
 };
 
-module.exports = { register, login, googleLogin };
+module.exports = { register, login, forgotPassword, verifyOtp };

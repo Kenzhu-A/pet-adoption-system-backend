@@ -1,11 +1,20 @@
 const supabase = require('../config/supabaseClient');
 
 const createPetPost = async (req, res) => {
-    const { owner_id, pet_name, breed, age, location, description, image_url } = req.body;
+    // 1. Destructure the new fields from the request body
+    const { 
+        owner_id, pet_name, breed, age, location, description, image_url, 
+        medical_history, behavior, personality 
+    } = req.body;
+    
     try {
+        // 2. Insert them into the Supabase database
         const { data, error } = await supabase
             .from('pets')
-            .insert([{ owner_id, pet_name, breed, age, location, description, image_url }])
+            .insert([{ 
+                owner_id, pet_name, breed, age, location, description, image_url,
+                medical_history, behavior, personality 
+            }])
             .select();
 
         if (error) throw error;
@@ -17,7 +26,6 @@ const createPetPost = async (req, res) => {
 
 const getAllPets = async (req, res) => {
     try {
-        // Fetch pets and join with the owner's details
         const { data, error } = await supabase
             .from('pets')
             .select('*, owner:users(full_name, avatar_url)')

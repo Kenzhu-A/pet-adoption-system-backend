@@ -1,13 +1,18 @@
 const supabase = require('../config/supabaseClient');
 
 // Get all users EXCEPT the currently logged-in user
+
 const getUsers = async (req, res) => {
-    const { userId } = req.params;
     try {
+        const { currentUserId } = req.params;
+        
+        if (!currentUserId) throw new Error("currentUserId is required");
+
+        // Fetch ALL users except the current user
         const { data, error } = await supabase
             .from('users')
-            .select('id, full_name, email, avatar_url')
-            .neq('id', userId); // Exclude self
+            .select('*')
+            .neq('id', currentUserId);
 
         if (error) throw error;
         res.status(200).json(data);
@@ -15,6 +20,7 @@ const getUsers = async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 };
+
 
 // Get chat history between two specific users
 const getMessages = async (req, res) => {
