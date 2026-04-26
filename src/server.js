@@ -7,7 +7,8 @@ const supabase = require('./config/supabaseClient'); // NEW: For saving messages
 
 const authRoutes = require('./routes/authRoutes');
 const messageRoutes = require('./routes/messageRoutes'); // NEW
-
+const petRoutes = require('./routes/petRoutes');
+const userRoutes = require('./routes/userRoutes');
 const app = express();
 const server = http.createServer(app); // NEW: Wrap express
 
@@ -21,7 +22,8 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes); // NEW
-
+app.use('/api/pets', petRoutes);
+app.use('/api/users', userRoutes);
 // --- REAL-TIME SOCKET LOGIC ---
 io.on('connection', (socket) => {
     console.log(`[SOCKET] User connected: ${socket.id}`);
