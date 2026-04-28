@@ -63,4 +63,13 @@ const addComment = async (req, res) => {
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
-module.exports = { createGeneralPost, getGeneralPosts, uploadPostImage, updateLike, getComments, addComment };
+const deleteGeneralPost = async (req, res) => {
+    const { postId } = req.params;
+    try {
+        const { error } = await supabase.from('general_posts').delete().eq('id', postId);
+        if (error) throw error;
+        res.status(200).json({ message: 'Post deleted' });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
+module.exports = { createGeneralPost, getGeneralPosts, uploadPostImage, updateLike, getComments, addComment, deleteGeneralPost };

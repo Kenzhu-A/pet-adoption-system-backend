@@ -13,5 +13,5 @@ router.post('/image', upload.single('post_image'), postController.uploadPostImag
 router.post('/like', postController.updateLike);
 router.get('/:postId/comments', postController.getComments);
 router.post('/comments', postController.addComment);
-
+router.delete('/:postId', postController.deleteGeneralPost);
 module.exports = router;

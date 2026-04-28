@@ -90,4 +90,13 @@ const updatePassword = async (req, res) => {
     }
 };
 
-module.exports = { getUserProfile, uploadAvatar, updateProfile, updatePassword };
+const deleteAccount = async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const { error } = await supabase.from('users').delete().eq('id', userId);
+        if (error) throw error;
+        res.status(200).json({ message: 'Account deleted successfully' });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
+module.exports = { getUserProfile, uploadAvatar, updateProfile, updatePassword, deleteAccount };

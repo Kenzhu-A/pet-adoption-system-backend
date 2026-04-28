@@ -12,5 +12,7 @@ router.get('/', petController.getAllPets);
 router.get('/my-pets/:userId', petController.getMyPets);
 router.put('/status', petController.updatePetStatus);
 router.post('/image', upload.single('pet_image'), petController.uploadPetImage);
-
+// Add this route
+router.delete('/:petId', petController.deletePetPost);
+router.get('/:petId', petController.getPetById);
 module.exports = router;

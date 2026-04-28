@@ -10,6 +10,8 @@ const messageRoutes = require('./routes/messageRoutes'); // NEW
 const petRoutes = require('./routes/petRoutes');
 const userRoutes = require('./routes/userRoutes');
 const postRoutes = require('./routes/postRoutes');
+const lostAndFoundRoutes = require('./routes/lostAndFoundRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 const server = http.createServer(app); // NEW: Wrap express
 
@@ -26,6 +28,8 @@ app.use('/api/messages', messageRoutes); // NEW
 app.use('/api/pets', petRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/lost-and-found', lostAndFoundRoutes);
+app.use('/api/admin', adminRoutes);
 // --- REAL-TIME SOCKET LOGIC ---
 io.on('connection', (socket) => {
     console.log(`[SOCKET] User connected: ${socket.id}`);

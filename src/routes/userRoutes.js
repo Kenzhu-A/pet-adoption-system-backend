@@ -12,5 +12,6 @@ router.post('/avatar', upload.single('avatar'), userController.uploadAvatar);
 // ... existing imports ...
 router.put('/update-profile', userController.updateProfile);
 router.post('/update-password', userController.updatePassword);
+router.delete('/:userId', userController.deleteAccount);
 
 module.exports = router;

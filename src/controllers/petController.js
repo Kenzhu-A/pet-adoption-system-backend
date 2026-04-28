@@ -66,5 +66,27 @@ const uploadPetImage = async (req, res) => {
         res.status(200).json({ image_url: publicUrlData.publicUrl });
     } catch (error) { res.status(500).json({ error: error.message }); }
 };
-
-module.exports = { createPetPost, getAllPets, getMyPets, updatePetStatus, uploadPetImage };
+const deletePetPost = async (req, res) => {
+    const { petId } = req.params;
+    try {
+        const { error } = await supabase.from('pets').delete().eq('id', petId);
+        if (error) throw error;
+        res.status(200).json({ message: 'Pet post deleted' });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+const getPetById = async (req, res) => {
+    const { petId } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('pets')
+            .select('*, owner:users(id, full_name, avatar_url, email)')
+            .eq('id', petId)
+            .single();
+            
+        if (error) throw error;
+        res.status(200).json(data);
+    } catch (error) { 
+        res.status(400).json({ error: error.message }); 
+    }
+};
+module.exports = { createPetPost, getAllPets, getMyPets, updatePetStatus, uploadPetImage, deletePetPost, getPetById };
