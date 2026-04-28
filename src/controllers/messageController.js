@@ -61,38 +61,55 @@ const deleteConversation = async (req, res) => {
 const getConversations = async (req, res) => {
     const { userId } = req.params;
     try {
-        // Fetch all messages where the current user is involved
-        const { data, error } = await supabase
+        // [DASHBOARD-REDESIGN] fixed: messages FK points to auth.users not public.users,
+        // so we cannot use FK hints. Fetch messages then batch-lookup public.users separately.
+        const { data: messages, error } = await supabase
             .from('messages')
-            .select('*, sender:users!messages_sender_id_fkey(id, full_name, avatar_url, email), receiver:users!messages_receiver_id_fkey(id, full_name, avatar_url, email)')
+            .select('*')
             .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        // Group them by unique partner to create a "Conversations" list
-        const conversations = [];
+        // Collect unique partner IDs
         const partnerIds = new Set();
+        for (const msg of messages) {
+            const partnerId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+            partnerIds.add(partnerId);
+        }
 
-        for (const msg of data) {
+        // Batch-fetch partner profiles from public.users
+        const partnerIdList = Array.from(partnerIds);
+        let usersMap = {};
+        if (partnerIdList.length > 0) {
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, full_name, avatar_url, email')
+                .in('id', partnerIdList);
+            (users || []).forEach(u => { usersMap[u.id] = u; });
+        }
+
+        // Build conversations list (one entry per unique partner, latest message first)
+        const conversations = [];
+        const seen = new Set();
+        for (const msg of messages) {
             const isSender = msg.sender_id === userId;
             const partnerId = isSender ? msg.receiver_id : msg.sender_id;
-            
-            if (!partnerIds.has(partnerId)) {
-                partnerIds.add(partnerId);
-                const partner = isSender ? msg.receiver : msg.sender;
+            if (!seen.has(partnerId)) {
+                seen.add(partnerId);
+                const partner = usersMap[partnerId] || {};
                 conversations.push({
                     partnerId,
-                    partnerName: partner?.full_name || partner?.email || 'Unknown User',
-                    partnerAvatar: partner?.avatar_url,
+                    partnerName: partner.full_name || partner.email || 'Unknown User',
+                    partnerAvatar: partner.avatar_url || null,
                     latestMessage: msg.text,
-                    createdAt: msg.created_at
+                    createdAt: msg.created_at,
                 });
             }
         }
         res.status(200).json(conversations);
-    } catch (error) { 
-        res.status(400).json({ error: error.message }); 
+    } catch (error) {
+        res.status(400).json({ error: error.message });
     }
 };
 
