@@ -4,6 +4,7 @@ const cors = require('cors');
 const http = require('http'); // NEW: Required for Socket.io
 const { Server } = require('socket.io'); // NEW: Import Socket.io
 const supabase = require('./config/supabaseClient'); // NEW: For saving messages
+const { sendPushToTokens } = require('./utils/pushNotifier'); // [PUSH-NOTIF]
 
 const authRoutes = require('./routes/authRoutes');
 const messageRoutes = require('./routes/messageRoutes'); // NEW
@@ -45,7 +46,7 @@ io.on('connection', (socket) => {
     // 2. Listen for outgoing messages
     socket.on('send_message', async (data) => {
         const { sender_id, receiver_id, text } = data;
-        
+
         try {
             // Save to Supabase permanently
             const { data: savedMsg, error } = await supabase
@@ -59,6 +60,23 @@ io.on('connection', (socket) => {
                 io.to(receiver_id).emit('receive_message', savedMsg);
                 // Send it back to the sender so it appears on their screen too
                 socket.emit('receive_message', savedMsg);
+
+                // [PUSH-NOTIF] also push to receiver's device
+                if (sender_id !== receiver_id) {
+                    try {
+                        const [{ data: receiver }, { data: sender }] = await Promise.all([
+                            supabase.from('users').select('expo_push_token').eq('id', receiver_id).single(),
+                            supabase.from('users').select('full_name').eq('id', sender_id).single(),
+                        ]);
+                        await sendPushToTokens([receiver?.expo_push_token], {
+                            title: `New message from ${sender?.full_name || 'someone'}`,
+                            body: (text || '').slice(0, 80),
+                            data: { type: 'new_message', senderId: sender_id, senderName: sender?.full_name },
+                        });
+                    } catch (pushErr) {
+                        console.error('[PUSH-NOTIF] message push failed:', pushErr.message);
+                    }
+                }
             }
         } catch (err) {
             console.error('[SOCKET ERROR]', err);

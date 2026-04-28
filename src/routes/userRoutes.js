@@ -13,5 +13,6 @@ router.post('/avatar', upload.single('avatar'), userController.uploadAvatar);
 router.put('/update-profile', userController.updateProfile);
 router.post('/update-password', userController.updatePassword);
 router.delete('/:userId', userController.deleteAccount);
+router.put('/push-token', userController.setPushToken); // [PUSH-NOTIF]
 
 module.exports = router;

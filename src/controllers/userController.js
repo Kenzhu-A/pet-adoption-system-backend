@@ -99,4 +99,20 @@ const deleteAccount = async (req, res) => {
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
-module.exports = { getUserProfile, uploadAvatar, updateProfile, updatePassword, deleteAccount };
+// [PUSH-NOTIF] persist a device's Expo push token on the users row
+const setPushToken = async (req, res) => {
+    const { user_id, expo_push_token } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    try {
+        const { error } = await supabase
+            .from('users')
+            .update({ expo_push_token })
+            .eq('id', user_id);
+        if (error) throw error;
+        res.status(200).json({ message: 'Token saved' });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+module.exports = { getUserProfile, uploadAvatar, updateProfile, updatePassword, deleteAccount, setPushToken };
