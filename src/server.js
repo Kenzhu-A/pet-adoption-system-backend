@@ -12,6 +12,7 @@ const userRoutes = require('./routes/userRoutes');
 const postRoutes = require('./routes/postRoutes');
 const lostAndFoundRoutes = require('./routes/lostAndFoundRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const savedPetRoutes = require('./routes/savedPetRoutes'); // [SAVED-PETS]
 const app = express();
 const server = http.createServer(app); // NEW: Wrap express
 
@@ -30,6 +31,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/lost-and-found', lostAndFoundRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/saved-pets', savedPetRoutes); // [SAVED-PETS]
 // --- REAL-TIME SOCKET LOGIC ---
 io.on('connection', (socket) => {
     console.log(`[SOCKET] User connected: ${socket.id}`);
