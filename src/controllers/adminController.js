@@ -2,14 +2,23 @@ const supabase = require('../config/supabaseClient');
 
 const getDashboardStats = async (req, res) => {
     try {
-        const { count: usersCount } = await supabase.from('users').select('*', { count: 'exact', head: true });
-        const { count: petsCount } = await supabase.from('pets').select('*', { count: 'exact', head: true });
-        const { count: adoptionsCount } = await supabase.from('pets').select('*', { count: 'exact', head: true }).eq('status', 'adopted');
-        
-        res.status(200).json({ 
-            users: usersCount || 0, 
-            activePets: petsCount || 0, 
-            successfulAdoptions: adoptionsCount || 0 
+        const [
+            { count: usersCount },
+            { count: petsCount },
+            { count: adoptionsCount },
+            { count: activeReportsCount },
+        ] = await Promise.all([
+            supabase.from('users').select('*', { count: 'exact', head: true }),
+            supabase.from('pets').select('*', { count: 'exact', head: true }),
+            supabase.from('pets').select('*', { count: 'exact', head: true }).eq('status', 'adopted'),
+            supabase.from('lost_and_found').select('*', { count: 'exact', head: true }).eq('status', 'Active'),
+        ]);
+
+        res.status(200).json({
+            users: usersCount || 0,
+            activePets: petsCount || 0,
+            successfulAdoptions: adoptionsCount || 0,
+            activeReports: activeReportsCount || 0,
         });
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
@@ -63,6 +72,46 @@ const deleteSystemPost = async (req, res) => {
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
+// --- USER MANAGEMENT ---
+const getAllUsers = async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('users')
+            .select('id, full_name, email, avatar_url, created_at')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        res.status(200).json(data);
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
+const deleteUser = async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const { error } = await supabase.from('users').delete().eq('id', userId);
+        if (error) throw error;
+        res.status(200).json({ message: 'User deleted' });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
+// --- LOST & FOUND MODERATION ---
+const getAllLostFoundReports = async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('lost_and_found')
+            .select('*, owner:users(full_name, avatar_url, email)')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        res.status(200).json(data);
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
+const deleteLostFoundReport = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { error } = await supabase.from('lost_and_found').delete().eq('id', id);
+        if (error) throw error;
+        res.status(200).json({ message: 'Report deleted' });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
 // --- ACTIVITY LOGS ---
 const getActivityLogs = async (req, res) => {
     try {
@@ -77,4 +126,4 @@ const getActivityLogs = async (req, res) => {
 
 // Don't forget to export them at the bottom!
 // module.exports = { ..., getAllSystemPosts, deleteSystemPost
-module.exports = { getDashboardStats, getAnnouncements, createAnnouncement, deleteAnnouncement, getAllSystemPosts, deleteSystemPost, getActivityLogs };
+module.exports = { getDashboardStats, getAnnouncements, createAnnouncement, deleteAnnouncement, getAllSystemPosts, deleteSystemPost, getActivityLogs, getAllUsers, deleteUser, getAllLostFoundReports, deleteLostFoundReport };

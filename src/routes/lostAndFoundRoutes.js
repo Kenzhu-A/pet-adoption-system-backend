@@ -8,6 +8,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post('/create', lostAndFoundController.createReport);
 router.get('/', lostAndFoundController.getReports);
 router.put('/resolve/:reportId', lostAndFoundController.resolveReport);
+router.put('/:reportId', lostAndFoundController.updateReport); // [LOST-FOUND] edit report
 router.post('/image', upload.single('report_image'), lostAndFoundController.uploadReportImage);
 
 module.exports = router;

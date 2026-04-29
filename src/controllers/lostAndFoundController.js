@@ -37,6 +37,20 @@ const uploadReportImage = async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
+// [LOST-FOUND] edit an existing report (owner only, enforced on frontend)
+const updateReport = async (req, res) => {
+    const { reportId } = req.params;
+    const { report_type, pet_category, pet_name, description, location, contact_info, image_url } = req.body;
+    try {
+        const { data, error } = await supabase.from('lost_and_found')
+            .update({ report_type, pet_category, pet_name, description, location, contact_info, image_url })
+            .eq('id', reportId)
+            .select();
+        if (error) throw error;
+        res.status(200).json(data[0]);
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
 const resolveReport = async (req, res) => {
     const { reportId } = req.params;
     try {
@@ -46,4 +60,4 @@ const resolveReport = async (req, res) => {
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
-module.exports = { createReport, getReports, uploadReportImage, resolveReport };
+module.exports = { createReport, updateReport, getReports, uploadReportImage, resolveReport };
