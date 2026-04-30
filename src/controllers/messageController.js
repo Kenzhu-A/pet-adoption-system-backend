@@ -40,21 +40,64 @@ const getMessages = async (req, res) => {
 };
 const deleteMessage = async (req, res) => {
     const { messageId } = req.params;
+    const { requesterId } = req.body || {};
+    const requester = requesterId || req.query.requesterId;
     try {
-        const { error } = await supabase.from('messages').delete().eq('id', messageId);
+        const io = req.app.get('io');
+        const { data: message, error: fetchError } = await supabase
+            .from('messages')
+            .select('id, sender_id, receiver_id')
+            .eq('id', messageId)
+            .single();
+
+        if (fetchError || !message) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+        if (requester && message.sender_id !== requester) {
+            return res.status(403).json({ error: 'You can only delete your own messages' });
+        }
+
+        const { data: deletedRows, error } = await supabase
+            .from('messages')
+            .delete()
+            .eq('id', messageId)
+            .select('id');
         if (error) throw error;
+        if (!deletedRows || deletedRows.length === 0) {
+            return res.status(404).json({ error: 'Message not found or already deleted' });
+        }
+        if (io) {
+            io.to(message.sender_id).emit('message_deleted', { messageId });
+            io.to(message.receiver_id).emit('message_deleted', { messageId });
+        }
         res.status(200).json({ message: 'Message deleted' });
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
 const deleteConversation = async (req, res) => {
     const { user1, user2 } = req.params;
+    const { requesterId } = req.body || {};
+    const requester = requesterId || req.query.requesterId;
     try {
-        const { error } = await supabase.from('messages')
+        const io = req.app.get('io');
+        if (requester && requester !== user1 && requester !== user2) {
+            return res.status(403).json({ error: 'Not allowed to delete this conversation' });
+        }
+
+        const { data: deletedRows, error } = await supabase.from('messages')
             .delete()
-            .or(`and(sender_id.eq.${user1},receiver_id.eq.${user2}),and(sender_id.eq.${user2},receiver_id.eq.${user1})`);
+            .or(`and(sender_id.eq.${user1},receiver_id.eq.${user2}),and(sender_id.eq.${user2},receiver_id.eq.${user1})`)
+            .select('id');
         if (error) throw error;
-        res.status(200).json({ message: 'Conversation deleted' });
+        if (!deletedRows || deletedRows.length === 0) {
+            return res.status(404).json({ error: 'Conversation not found or already deleted' });
+        }
+        if (io) {
+            const payload = { user1, user2, deletedBy: requester || null };
+            io.to(user1).emit('conversation_deleted', payload);
+            io.to(user2).emit('conversation_deleted', payload);
+        }
+        res.status(200).json({ message: 'Conversation deleted', deletedCount: deletedRows?.length || 0 });
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
@@ -115,11 +158,46 @@ const getConversations = async (req, res) => {
 
 const editMessage = async (req, res) => {
     const { messageId } = req.params;
-    const { text } = req.body;
+    const { text, requesterId } = req.body || {};
     try {
-        const { data, error } = await supabase.from('messages').update({ text }).eq('id', messageId).select();
+        const io = req.app.get('io');
+        if (!text || !text.trim()) {
+            return res.status(400).json({ error: 'Message text is required' });
+        }
+
+        const { data: message, error: fetchError } = await supabase
+            .from('messages')
+            .select('id, sender_id, receiver_id')
+            .eq('id', messageId)
+            .single();
+
+        if (fetchError || !message) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+        if (requesterId && message.sender_id !== requesterId) {
+            return res.status(403).json({ error: 'You can only edit your own messages' });
+        }
+
+        const { error } = await supabase
+            .from('messages')
+            .update({ text: text.trim() })
+            .eq('id', messageId);
         if (error) throw error;
-        res.status(200).json(data[0]);
+
+        // Re-fetch to return a stable object even if update payload is empty.
+        const { data: updatedMessage, error: refetchError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('id', messageId)
+            .single();
+        if (refetchError || !updatedMessage) {
+            return res.status(404).json({ error: 'Message not found after update' });
+        }
+        if (io) {
+            io.to(message.sender_id).emit('message_edited', updatedMessage);
+            io.to(message.receiver_id).emit('message_edited', updatedMessage);
+        }
+        res.status(200).json(updatedMessage);
     } catch (error) { 
         res.status(400).json({ error: error.message }); 
     }

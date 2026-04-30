@@ -22,6 +22,7 @@ const server = http.createServer(app); // NEW: Wrap express
 const io = new Server(server, {
     cors: { origin: '*' }
 });
+app.set('io', io);
 
 app.use(cors());
 app.use(express.json());
