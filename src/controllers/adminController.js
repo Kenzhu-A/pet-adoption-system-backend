@@ -168,6 +168,83 @@ const deleteLostFoundReport = async (req, res) => {
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
+// --- USER CONVERSATIONS INSPECTION ---
+// [ADMIN-CONVO-INSPECT] allow admin to view user conversations
+const getUserConversations = async (req, res) => {
+    const { userId } = req.params;
+    try {
+        // Fetch all messages where this user is sender or receiver
+        const { data: messages, error } = await supabase
+            .from('messages')
+            .select('*')
+            .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (!messages || messages.length === 0) {
+            return res.status(200).json([]);
+        }
+
+        // Collect unique partner IDs
+        const partnerIds = new Set();
+        for (const msg of messages) {
+            const partnerId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+            partnerIds.add(partnerId);
+        }
+
+        // Batch-fetch partner profiles
+        const partnerIdList = Array.from(partnerIds);
+        let usersMap = {};
+        if (partnerIdList.length > 0) {
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, full_name, avatar_url, email')
+                .in('id', partnerIdList);
+            (users || []).forEach(u => { usersMap[u.id] = u; });
+        }
+
+        // Build conversations list
+        const conversations = [];
+        const seen = new Set();
+        for (const msg of messages) {
+            const isSender = msg.sender_id === userId;
+            const partnerId = isSender ? msg.receiver_id : msg.sender_id;
+
+            if (!seen.has(partnerId)) {
+                seen.add(partnerId);
+                const partner = usersMap[partnerId] || {};
+                conversations.push({
+                    partnerId,
+                    partnerName: partner.full_name || partner.email || 'Unknown User',
+                    partnerAvatar: partner.avatar_url || null,
+                    latestMessage: msg.text,
+                    createdAt: msg.created_at,
+                    messageCount: messages.filter(m =>
+                        (m.sender_id === userId && m.receiver_id === partnerId) ||
+                        (m.sender_id === partnerId && m.receiver_id === userId)
+                    ).length
+                });
+            }
+        }
+        res.status(200).json(conversations);
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
+// [ADMIN-CONVO-INSPECT] allow admin to view full conversation between two users
+const getConversationMessages = async (req, res) => {
+    const { userId1, userId2 } = req.params;
+    try {
+        const { data: messages, error } = await supabase
+            .from('messages')
+            .select('*')
+            .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        res.status(200).json(messages || []);
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
 // --- ACTIVITY LOGS ---
 const getActivityLogs = async (req, res) => {
     try {
@@ -182,4 +259,4 @@ const getActivityLogs = async (req, res) => {
 
 // Don't forget to export them at the bottom!
 // module.exports = { ..., getAllSystemPosts, deleteSystemPost
-module.exports = { getDashboardStats, getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getAllAdminPets, getAllSystemPosts, deleteSystemPost, getActivityLogs, getAllUsers, deleteUser, getAllLostFoundReports, deleteLostFoundReport };
+module.exports = { getDashboardStats, getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getAllAdminPets, getAllSystemPosts, deleteSystemPost, getActivityLogs, getAllUsers, deleteUser, getAllLostFoundReports, deleteLostFoundReport, getUserConversations, getConversationMessages };

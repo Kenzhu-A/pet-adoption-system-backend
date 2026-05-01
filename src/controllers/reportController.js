@@ -1,8 +1,8 @@
-// [REPORTS] user-submitted content reports — pet posts and community posts
+// [REPORTS] user-submitted content reports — pet posts, community posts, and users
 // Required Supabase table:
 //   reports (id uuid pk default gen_random_uuid(),
-//            report_type text,   -- 'pet_post' | 'community_post'
-//            item_id     text,   -- id of the reported pet or post
+//            report_type text,   -- 'pet_post' | 'community_post' | 'user'
+//            item_id     text,   -- id of the reported pet, post, or user
 //            reporter_id uuid references users(id),
 //            reason      text,
 //            description text,
@@ -39,8 +39,10 @@ const getAllReports = async (req, res) => {
             .order('created_at', { ascending: false });
         if (error) throw error;
 
-        // collect unique reporter IDs and fetch user rows in one query
-        const ids = [...new Set((reports || []).map(r => r.reporter_id).filter(Boolean))];
+        // [USER-REPORT-MODERATION] Fetch reporters and reported users so user reports do not look like generic content reports.
+        const ids = [...new Set((reports || [])
+            .flatMap(r => [r.reporter_id, r.report_type === 'user' ? r.item_id : null])
+            .filter(Boolean))];
         let userMap = {};
         if (ids.length > 0) {
             const { data: users } = await supabase.from('users')
@@ -49,7 +51,11 @@ const getAllReports = async (req, res) => {
             (users || []).forEach(u => { userMap[u.id] = u; });
         }
 
-        const enriched = (reports || []).map(r => ({ ...r, reporter: userMap[r.reporter_id] || null }));
+        const enriched = (reports || []).map(r => ({
+            ...r,
+            reporter: userMap[r.reporter_id] || null,
+            reported_user: r.report_type === 'user' ? userMap[r.item_id] || null : null,
+        }));
         res.status(200).json(enriched);
     } catch (error) { res.status(400).json({ error: error.message }); }
 };

@@ -14,4 +14,5 @@ router.post('/like', postController.updateLike);
 router.get('/:postId/comments', postController.getComments);
 router.post('/comments', postController.addComment);
 router.delete('/:postId', postController.deleteGeneralPost);
+router.put('/:postId', postController.updateGeneralPost);
 module.exports = router;

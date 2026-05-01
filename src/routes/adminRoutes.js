@@ -16,4 +16,8 @@ router.delete('/users/:userId', adminController.deleteUser);
 router.get('/lost-and-found', adminController.getAllLostFoundReports);
 router.delete('/lost-and-found/:id', adminController.deleteLostFoundReport);
 
+// [ADMIN-CONVO-INSPECT] user conversation inspection routes
+router.get('/users/:userId/conversations', adminController.getUserConversations);
+router.get('/conversations/:userId1/:userId2', adminController.getConversationMessages);
+
 module.exports = router;
