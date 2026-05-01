@@ -72,4 +72,18 @@ const deleteGeneralPost = async (req, res) => {
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
 
-module.exports = { createGeneralPost, getGeneralPosts, uploadPostImage, updateLike, getComments, addComment, deleteGeneralPost };
+const updateGeneralPost = async (req, res) => {
+    const { postId } = req.params;
+    const { description, image_url } = req.body;
+    try {
+        const { data, error } = await supabase
+            .from('general_posts')
+            .update({ description, image_url })
+            .eq('id', postId)
+            .select();
+        if (error) throw error;
+        res.status(200).json({ message: 'Post updated', post: data[0] });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+};
+
+module.exports = { createGeneralPost, getGeneralPosts, uploadPostImage, updateLike, getComments, addComment, deleteGeneralPost, updateGeneralPost };
