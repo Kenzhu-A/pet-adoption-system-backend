@@ -50,8 +50,9 @@ const deleteMessage = async (req, res) => {
             .eq('id', messageId)
             .single();
 
+        // Treat missing message as already deleted (idempotent delete)
         if (fetchError || !message) {
-            return res.status(404).json({ error: 'Message not found' });
+            return res.status(200).json({ message: 'Message not found or already deleted' });
         }
         if (requester && message.sender_id !== requester) {
             return res.status(403).json({ error: 'You can only delete your own messages' });
@@ -64,7 +65,7 @@ const deleteMessage = async (req, res) => {
             .select('id');
         if (error) throw error;
         if (!deletedRows || deletedRows.length === 0) {
-            return res.status(404).json({ error: 'Message not found or already deleted' });
+            return res.status(200).json({ message: 'Message not found or already deleted' });
         }
         if (io) {
             io.to(message.sender_id).emit('message_deleted', { messageId });
@@ -89,8 +90,9 @@ const deleteConversation = async (req, res) => {
             .or(`and(sender_id.eq.${user1},receiver_id.eq.${user2}),and(sender_id.eq.${user2},receiver_id.eq.${user1})`)
             .select('id');
         if (error) throw error;
+        // Idempotent delete: return success even if it was already empty.
         if (!deletedRows || deletedRows.length === 0) {
-            return res.status(404).json({ error: 'Conversation not found or already deleted' });
+            return res.status(200).json({ message: 'Conversation not found or already deleted', deletedCount: 0 });
         }
         if (io) {
             const payload = { user1, user2, deletedBy: requester || null };

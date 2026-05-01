@@ -57,6 +57,17 @@ const createAnnouncement = async (req, res) => {
             console.warn('[ANNOUNCEMENTS] push skipped:', pushErr.message);
         }
 
+        // [ANNOUNCEMENTS-REALTIME] emit socket event to all connected users for real-time badge update
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.emit('new_announcement', data[0]);
+                console.log('[ANNOUNCEMENTS] Emitted new announcement via socket');
+            }
+        } catch (socketErr) {
+            console.warn('[ANNOUNCEMENTS] socket emit skipped:', socketErr.message);
+        }
+
         res.status(201).json(data[0]);
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
