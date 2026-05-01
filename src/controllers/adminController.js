@@ -169,6 +169,68 @@ const deleteLostFoundReport = async (req, res) => {
 };
 
 // --- USER CONVERSATIONS INSPECTION ---
+// [ADMIN-CONVO-INSPECT] all conversations for admin moderation dashboard
+const getAllConversations = async (req, res) => {
+    try {
+        const { data: messages, error } = await supabase
+            .from('messages')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (!messages || messages.length === 0) {
+            return res.status(200).json([]);
+        }
+
+        const userIds = [...new Set(messages.flatMap(m => [m.sender_id, m.receiver_id]).filter(Boolean))];
+        let usersMap = {};
+        if (userIds.length > 0) {
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, full_name, avatar_url, email')
+                .in('id', userIds);
+            (users || []).forEach(u => { usersMap[u.id] = u; });
+        }
+
+        const conversations = [];
+        const counts = {};
+        for (const msg of messages) {
+            const key = msg.sender_id < msg.receiver_id
+                ? `${msg.sender_id}|${msg.receiver_id}`
+                : `${msg.receiver_id}|${msg.sender_id}`;
+            counts[key] = (counts[key] || 0) + 1;
+        }
+
+        const seen = new Set();
+        for (const msg of messages) {
+            const key = msg.sender_id < msg.receiver_id
+                ? `${msg.sender_id}|${msg.receiver_id}`
+                : `${msg.receiver_id}|${msg.sender_id}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            const user1 = usersMap[msg.sender_id] || {};
+            const user2 = usersMap[msg.receiver_id] || {};
+            conversations.push({
+                id: key,
+                user1Id: msg.sender_id,
+                user1Name: user1.full_name || user1.email || 'Unknown User',
+                user1Avatar: user1.avatar_url || null,
+                user2Id: msg.receiver_id,
+                user2Name: user2.full_name || user2.email || 'Unknown User',
+                user2Avatar: user2.avatar_url || null,
+                latestMessage: msg.text,
+                createdAt: msg.created_at,
+                messageCount: counts[key] || 0,
+            });
+        }
+
+        res.status(200).json(conversations);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
 // [ADMIN-CONVO-INSPECT] allow admin to view user conversations
 const getUserConversations = async (req, res) => {
     const { userId } = req.params;
@@ -259,4 +321,4 @@ const getActivityLogs = async (req, res) => {
 
 // Don't forget to export them at the bottom!
 // module.exports = { ..., getAllSystemPosts, deleteSystemPost
-module.exports = { getDashboardStats, getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getAllAdminPets, getAllSystemPosts, deleteSystemPost, getActivityLogs, getAllUsers, deleteUser, getAllLostFoundReports, deleteLostFoundReport, getUserConversations, getConversationMessages };
+module.exports = { getDashboardStats, getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getAllAdminPets, getAllSystemPosts, deleteSystemPost, getActivityLogs, getAllUsers, deleteUser, getAllLostFoundReports, deleteLostFoundReport, getAllConversations, getUserConversations, getConversationMessages };
