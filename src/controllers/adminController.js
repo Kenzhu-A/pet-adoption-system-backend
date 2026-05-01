@@ -40,6 +40,34 @@ const createAnnouncement = async (req, res) => {
         const { data, error } = await supabase.from('announcements')
             .insert([{ title, content, author_id }]).select();
         if (error) throw error;
+
+        // [ANNOUNCEMENTS] push to every user that has a registered push token
+        try {
+            const { sendPushToTokens } = require('../utils/pushNotifier');
+            const { data: users } = await supabase.from('users')
+                .select('expo_push_token')
+                .not('expo_push_token', 'is', null);
+            const tokens = (users || []).map(u => u.expo_push_token).filter(Boolean);
+            await sendPushToTokens(tokens, {
+                title,
+                body: content.length > 100 ? content.slice(0, 100) + '…' : content,
+                data: { type: 'announcement', announcementId: data[0].id, title, body: content },
+            });
+        } catch (pushErr) {
+            console.warn('[ANNOUNCEMENTS] push skipped:', pushErr.message);
+        }
+
+        // [ANNOUNCEMENTS-REALTIME] emit socket event to all connected users for real-time badge update
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.emit('new_announcement', data[0]);
+                console.log('[ANNOUNCEMENTS] Emitted new announcement via socket');
+            }
+        } catch (socketErr) {
+            console.warn('[ANNOUNCEMENTS] socket emit skipped:', socketErr.message);
+        }
+
         res.status(201).json(data[0]);
     } catch (error) { res.status(400).json({ error: error.message }); }
 };
